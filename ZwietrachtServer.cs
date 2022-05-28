@@ -124,11 +124,15 @@ namespace Zwietracht
                 }
                 string token = req[0];
                 User u = MongoDBInteractor.GetUserByToken(token);
-                clients[u.id] = new Client
+                if(u != null)
                 {
-                    userId = u.id,
-                    request = request,
-                };
+                    clients[u.id] = new Client
+                    {
+                        userId = u.id,
+                        request = request,
+                    };
+                }
+                
                 switch (req[1])
                 {
                     case "messages":
