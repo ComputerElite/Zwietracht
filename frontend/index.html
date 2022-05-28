@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        {meta}
+        <title>Zwietracht</title>
+    </head>
+    <body>
+        <div class="content">
+            <h1>Welcome to Zwietracht</h1>
+            <i>The worst nightmare you could imagine</i>
+
+            <h2>Login/Register</h2>
+            <input type="text" id="username" placeholder="username">
+            <input type="password" id="password" placeholder="password">
+            <br>
+            <input type="button" value="Register" onclick="Register()">
+            <input type="button" value="Login" onclick="Login()">
+            <div class="textbox" id="status"></div>
+            <script src="script.js"></script>
+            <script>
+                const username = document.getElementById("username");
+                const password = document.getElementById("password");
+
+                function Register() {
+                    jfetch("/api/v1/createuser", "POST", JSON.stringify({
+                        username: username.value,
+                        password: password.value
+                    })).then(res => {
+                        if(res.success) {
+                            localStorage.token = res.token;
+                            location = "/app"
+                            TextBoxGood("status", res.message)
+                        } else {
+                            TextBoxError("status", res.message)
+                        }
+                    })
+                }
+
+                function Login() {
+                    jfetch("/api/v1/login", "POST", JSON.stringify({
+                        username: username.value,
+                        password: password.value
+                    })).then(res => {
+                        if(res.success) {
+                            localStorage.token = res.token;
+                            location = "/app"
+                            TextBoxGood("status", res.message)
+                        } else {
+                            TextBoxError("status", res.message)
+                        }
+                    })
+                }
+            </script>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        {meta}
+        <title>Zwietracht</title>
+    </head>
+    <body>
+        <div class="content">
+            <h1>Welcome to Zwietracht</h1>
+            <i>The best chatting system on the entire planet</i>
+
+            <h2>Who am I</h2>
+            <table>
+                <tr>
+                    <td>nickname</td>
+                    <td id="nickname">loading, please wait</td>
+                </tr>
+                <tr>
+                    <td>id</td>
+                    <td id="id">loading, please wait</td>
+                </tr>
+            </table>
+            <h2>Create channel</h2>
+            Seperate participants by comma
+            <input type="text" id="participants" placeholder="ComputerElite, EnderdracheLP">
+            <input type="button" value="Create" onclick="CreateChannel()">
+            <h2>Channels</h2>
+            <div id="channels">loading, please wait</div>
+            <h2>Chat</h2>
+            <div id="messages">
+                Select a channel
+            </div>
+            <input type="text" id="message" onkeydown="if(event.code == 'Enter') SendMessage()" placeholder="Type your message here">
+            <input type="button" value="Send" onclick="SendMessage()">
+            <script src="script.js"></script>
+            <script>
+                var me = {}
+                var currentChannel = 0
+                RequestMe()
+                function RequestMe() {
+                    jfetch("/api/v1/me").then(res => {
+                        me = res
+                        UpdateUI()
+                    })
+                }
+
+                function CreateChannel() {
+                    var participants = []
+                    participants.push({
+                        nickname: me.nickname
+                    })
+                    document.getElementById("participants").value.split(',').forEach(x => {
+                        participants.push({
+                            nickname: x.trim()
+                        })
+                    })
+                    tfetch("/api/v1/createchannel", "POST", JSON.stringify({
+                        participants: participants
+                    })).then(res => {
+                        RequestMe()
+                    })
+                }
+
+                setInterval(() => {
+                    UpdateChannel()
+                }, 1000)
+
+                setInterval(() => {
+                    RequestMe()
+                }, 10000)
+
+                function UpdateChannel() {
+                    if(currentChannel == 0) {
+                        document.getElementById("messages").innerHTML = "Select a channel"
+                        return
+                    }
+                    const messages = document.getElementById("messages")
+                    jfetch("/api/v1/messages/" + currentChannel).then(res => {
+                        messages.innerHTML = ""
+                        var m = ""
+                        res.forEach(x => {
+                            m = "<div>" + x.author.nickname + ": " + SafeFormat(x.content) + "</div>" + m
+                        })
+                        messages.innerHTML = m
+                    })
+                }
+
+                function SendMessage() {
+                    tfetch("/api/v1/messages/" + currentChannel, "POST", JSON.stringify({
+                        author: {
+                            nickname: me.nickname,
+                            id: me.id
+                        },
+                        content: document.getElementById("message").value
+                    })).then(res => {
+                        document.getElementById("message").value = ""
+                        UpdateChannel()
+                    })
+                }
+
+                function OpenChannel(id) {
+                    currentChannel = id
+                    UpdateChannel()
+                }
+
+                function UpdateUI() {
+                    document.getElementById("nickname").innerHTML = SafeFormat(me.nickname)
+                    document.getElementById("id").innerHTML = SafeFormat(me.id.toString())
+                    const channels = document.getElementById("channels")
+                    channels.innerHTML = "";
+                    me.channels.forEach(x => {
+                        channels.innerHTML += `<div class="channel">
+                                <a onclick="OpenChannel(${x.id})">${x.participants.map(x => x.nickname).join(', ')}</a>
+                            </div>`
+                    })
+                }
+            </script>
+        </div>
+    </body>
+</html>
