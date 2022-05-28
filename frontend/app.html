@@ -52,7 +52,7 @@
                 var calling = false
                 function Call() {
                     calling = true
-                    const interval = 1000
+                    const interval = 1024
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         var loopId = setInterval(() => {
                             if(!calling) clearInterval(loopId)
@@ -68,7 +68,19 @@
                                 reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
                                 reader.onloadend = function() {
                                     base64 = reader.result;
-                                    ws.send(localStorage.token + "|call|" + currentChannel + "|" + base64)
+                                    //console.log(base64)
+                                    tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
+                                        var chunks = res.split("|")
+                                        chunks.forEach(x => {
+                                            if(x != "") {
+                                                console.log(x)
+                                                var audio = document.createElement("audio")
+                                                audio.src = x
+                                                audio.play()
+                                            }
+                                        })
+                                    })
+                                    //ws.send()
                                 }
                             }
                             setTimeout(() => {
