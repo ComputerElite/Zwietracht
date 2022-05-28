@@ -158,7 +158,7 @@
                         const messages = document.getElementById("messages")
                         var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
                         //messages.innerHTML = ""
-                        res.forEach(x => {
+                        res.reverse().forEach(x => {
                             if(lastMessage < parseInt(x.id))  {
                                 lastMessage = parseInt(x.id)
                                 var m = ""
