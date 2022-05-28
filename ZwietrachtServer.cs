@@ -97,7 +97,7 @@ namespace Zwietracht
                 }
                 else
                 {
-                    Logger.Log("sending to " + cs[i].userId);
+                    Logger.Log("Sending to " + cs[i].userId, LoggingType.Important);
                     clients[cs[i].userId].request.SendString(req[3]);
                 }
             }
@@ -123,7 +123,13 @@ namespace Zwietracht
                     return;
                 }
                 string token = req[0];
-                switch(req[1])
+                User u = MongoDBInteractor.GetUserByToken(token);
+                clients[u.id] = new Client
+                {
+                    userId = u.id,
+                    request = request,
+                };
+                switch (req[1])
                 {
                     case "messages":
                         WSQueryString queryString = new WSQueryString(req);
@@ -133,14 +139,6 @@ namespace Zwietracht
                             return;
                         }
                         request.SendString(JsonSerializer.Serialize(MongoDBInteractor.GetMessages(req[2], int.Parse(queryString.Get("before") ?? "-1"), int.Parse(queryString.Get("after") ?? "-1"), int.Parse(queryString.Get("count") ?? "100"), token)));
-                        break;
-                    case "register":
-                        User u = MongoDBInteractor.GetUserByToken(token);
-                        clients[u.id] = new Client
-                        {
-                            userId = u.id,
-                            request = request,
-                        };
                         break;
                 }
             }));
