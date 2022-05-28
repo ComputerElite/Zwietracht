@@ -32,6 +32,10 @@
             </div>
             <input type="text" id="message" onkeydown="if(event.code == 'Enter') SendMessage()" placeholder="Type your message here">
             <input type="button" value="Send" onclick="SendMessage()">
+            <input type="button" value="Upload image" onclick="UploadImage()">
+            <div id="images">
+
+            </div>
             <script src="script.js"></script>
             <script>
                 var me = {}
@@ -42,6 +46,81 @@
                         me = res
                         UpdateUI()
                     })
+                }
+                
+                var ws = new WebSocket("ws://" + window.location.host)
+
+                ws.onopen = () => {
+                    console.log("connection opened")
+                }
+
+                var attachments = []
+
+                function UploadImage() {
+                    var input = document.createElement("input")
+                    input.setAttribute("type", "file")
+                    input.setAttribute("accept", "image/*")
+                    input.click()
+
+                    input.onchange = function (e) {
+                        if (!this.files[0]) {
+                            return;
+                        }
+
+                        var reader = new FileReader();
+                        reader.onload = function(e) {
+                            attachments.push({
+                                base64: e.target.result
+                            })
+                            UpdateMessageUI()
+                        }
+                        reader.readAsDataURL(this.files[0])
+                    }
+                }
+
+                document.onpaste = function(event) {
+                    var items = (event.clipboardData || event.originalEvent.clipboardData).items;
+                    for (index in items) {
+                        var item = items[index];
+                            if (item.kind === 'file') {
+                            var blob = item.getAsFile();
+                            var reader = new FileReader();
+                            reader.onload = function(event){
+                                attachments.push({
+                                    base64: event.target.result,
+                                })
+                                UpdateMessageUI()
+                            }
+                            reader.readAsDataURL(blob);
+                        }
+                    }
+                }
+
+                function UpdateMessageUI() {
+                    var html = ""
+                    for (var i = 0; i < attachments.length; i++) {
+                        html += "<img src='" + attachments[i].base64 + "'>"
+                    }
+                    document.getElementById("images").innerHTML = html
+                }
+
+                ws.onmessage = (e) => {
+                    console.log("message received")
+                    var res = JSON.parse(e.data)
+                    const messages = document.getElementById("messages")
+                    var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
+                    messages.innerHTML = ""
+                    var m = ""
+                    res.forEach(x => {
+                        x.attachments.forEach(a => {
+                            m = `<img class="attachment" src="${a.url}">` + m
+                        })
+                        m = "<div><div class='username'>" + x.author.nickname + "</div>:<br>" + SafeFormat(x.content) + "</div>" + m
+                        
+                    })
+                    
+                    messages.innerHTML = m
+                    if(scroll) messages.scrollTop = messages.scrollHeight
                 }
 
                 function CreateChannel() {
@@ -74,15 +153,7 @@
                         document.getElementById("messages").innerHTML = "Select a channel"
                         return
                     }
-                    const messages = document.getElementById("messages")
-                    jfetch("/api/v1/messages/" + currentChannel).then(res => {
-                        messages.innerHTML = ""
-                        var m = ""
-                        res.forEach(x => {
-                            m = "<div>" + x.author.nickname + ": " + SafeFormat(x.content) + "</div>" + m
-                        })
-                        messages.innerHTML = m
-                    })
+                    ws.send(`${localStorage.token}|messages|${currentChannel}`)
                 }
 
                 function SendMessage() {
@@ -91,11 +162,18 @@
                             nickname: me.nickname,
                             id: me.id
                         },
+                        attachments: attachments,
                         content: document.getElementById("message").value
                     })).then(res => {
-                        document.getElementById("message").value = ""
+                        AfterSendCleanup()
                         UpdateChannel()
                     })
+                }
+
+                function AfterSendCleanup() {
+                    document.getElementById("message").value = ""
+                    attachments = []
+                    UpdateMessageUI()
                 }
 
                 function OpenChannel(id) {
@@ -110,7 +188,7 @@
                     channels.innerHTML = "";
                     me.channels.forEach(x => {
                         channels.innerHTML += `<div class="channel">
-                                <a onclick="OpenChannel(${x.id})">${x.participants.map(x => x.nickname).join(', ')}</a>
+                                <a onclick="OpenChannel('${x.id}')">${x.participants.map(x => x.nickname).join(', ')}</a>
                             </div>`
                     })
                 }

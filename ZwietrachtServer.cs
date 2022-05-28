@@ -1,4 +1,5 @@
-﻿using ComputerUtils.Updating;
+﻿using ComputerUtils.Logging;
+using ComputerUtils.Updating;
 using ComputerUtils.Webserver;
 using System.Net;
 using System.Reflection;
@@ -49,11 +50,32 @@ namespace Zwietracht
             string frontend = "frontend" + Path.DirectorySeparatorChar;
             server.DefaultCacheValidityInSeconds = 0;
             MongoDBInteractor.Init();
-
+            server.AddWSRoute("/", new Action<SocketServerRequest>(request =>
+            {
+                string[] req = request.bodyString.Split('|');
+                WSQueryString queryString = new WSQueryString(req);
+                if(req.Length < 2)
+                {
+                    request.SendString("You must send a command: 'token|command|arg1|arg2|arg3|...'");
+                    return;
+                }
+                string token = req[0];
+                switch(req[1])
+                {
+                    case "messages":
+                        if(req.Length < 3)
+                        {
+                            request.SendString("You must specify a channel: 'token|messages|channelId'");
+                            return;
+                        }
+                        request.SendString(JsonSerializer.Serialize(MongoDBInteractor.GetMessages(req[2], int.Parse(queryString.Get("before") ?? "-1"), int.Parse(queryString.Get("after") ?? "-1"), int.Parse(queryString.Get("count") ?? "100"), token)));
+                        break;
+                }
+            }));
             // Messages
             server.AddRoute("GET", "/api/v1/messages/", new Func<ServerRequest, bool>(request =>
             {
-                request.SendString(JsonSerializer.Serialize(MongoDBInteractor.GetMessages(long.Parse(request.pathDiff), int.Parse(request.queryString.Get("before") ?? "-1"), int.Parse(request.queryString.Get("after") ?? "-1"), int.Parse(request.queryString.Get("count") ?? "100"))));
+                request.SendString(JsonSerializer.Serialize(MongoDBInteractor.GetMessages(request.pathDiff, int.Parse(request.queryString.Get("before") ?? "-1"), int.Parse(request.queryString.Get("after") ?? "-1"), int.Parse(request.queryString.Get("count") ?? "100"))));
                 return true;
             }), true);
             server.AddRoute("POST", "/api/v1/messages/", new Func<ServerRequest, bool>(request =>
@@ -73,6 +95,25 @@ namespace Zwietracht
                 request.SendString(JsonSerializer.Serialize(MongoDBInteractor.Me(GetToken(request))));
                 return true;
             }));
+
+            server.AddRoute("GET", "/cdn/", new Func<ServerRequest, bool>(request =>
+            {
+                string[] req = request.pathDiff.Trim('/').Split("/");
+                if (req.Length < 3)
+                {
+                    request.SendString("needs channel/message/filename");
+                    return true;
+                }
+                if (request.bodyString.Contains("."))
+                {
+                    request.SendString("dots are not allowed in cdn urls due to security concerns", "text/plain", 400);
+                    return true;
+                }
+                string requestedFile = ZwietrachtEnvironment.dataDir + "files" + Path.DirectorySeparatorChar + req[0] + Path.DirectorySeparatorChar + req[1] + Path.DirectorySeparatorChar + req[2];
+                Logger.Log(requestedFile);
+                request.SendFile(requestedFile);
+                return true;
+            }), true);
 
             // Users
             server.AddRoute("POST", "/api/v1/createuser", new Func<ServerRequest, bool>(request =>

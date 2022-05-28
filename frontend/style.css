@@ -19,6 +19,16 @@ html {
     font-size: 18px!important;
 }
 
+.attachment {
+    margin-left: 20px;
+    max-width: 90%;
+}
+
+.username {
+    font-weight: bold;
+    display: inline;
+}
+
 a {
     color: var(--highlightedColor);
     cursor: pointer;

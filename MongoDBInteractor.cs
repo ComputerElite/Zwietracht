@@ -1,5 +1,7 @@
 ﻿using ComputerUtils.Encryption;
+using ComputerUtils.FileManaging;
 using ComputerUtils.Logging;
+using ComputerUtils.Webserver;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
@@ -20,6 +22,13 @@ namespace Zwietracht
         public static IMongoDatabase zwietrachtDatabase = null;
         public static IMongoCollection<UserInfo> userCollection = null;
         public static IMongoCollection<Channel> channelCollection = null;
+        public static Config config
+        { 
+            get
+            {
+                return ZwietrachtEnvironment.config;
+            }
+        }
 
         public static void Init()
         {
@@ -34,10 +43,15 @@ namespace Zwietracht
             channelCollection = zwietrachtDatabase.GetCollection<Channel>("channels");
         }
 
-        public static List<Message> GetMessages(long channelId, int before = -1, int after = -1, int count = 100)
+        public static List<Message> GetMessages(string channelId, int before = -1, int after = -1, int count = 100, string token = "")
         {
+            Channel c = GetChannel(channelId);
+            if (c == null) return new List<Message>();
+            User me = GetUserByToken(token);
+            if(me == null) return new List<Message>();
+            if (c.participants.Where(x => x.id == me.id).Count() < 1) return new List<Message>();
             IMongoCollection<Message> channel = zwietrachtDatabase.GetCollection<Message>(channelId.ToString());
-            if(channel == null) return null;
+            if (channel == null) return new List<Message>();
             if (before == -1 && after == -1)
             {
                 return channel.Find(x => true).SortByDescending(x => x.id).Limit(count).ToList();
@@ -51,6 +65,12 @@ namespace Zwietracht
                 return channel.Find(x => Convert.ToInt64(x.id) > after).SortBy(x => x.id).Limit(count).ToList();
             }
             return null;
+        }
+
+        private static Channel GetChannel(string channelId)
+        {
+            Logger.Log(channelCollection.Find(x => x.id == channelId).Any().ToString());
+            return channelCollection.Find(x => x.id == channelId).FirstOrDefault();
         }
 
         public static bool DoesUserExist(string username)
@@ -109,6 +129,7 @@ namespace Zwietracht
         public static void CreateChannel(Channel channel, string token)
         {
             List<User> participants = new List<User>();
+            User me = GetUserByToken(token);
             foreach(User u in channel.participants)
             {
                 User found = GetUser(u.nickname);
@@ -118,11 +139,21 @@ namespace Zwietracht
                 }
             }
             BsonArray users = new BsonArray();
+            bool userThere = false;
             foreach(User u in participants)
             {
-                users.Add(new BsonDocument("$contains"))
+                if(u.id == me.id) userThere = true;
+                users.Add(new BsonDocument("participants", new BsonDocument("$elemMatch", new BsonDocument("id", u.id))));
             }
-            // ToDo: Add check to check if user is in participants
+            if(!userThere)
+            {
+                return; // User who created the channel isn't participating
+            }
+            if(channelCollection.Find(new BsonDocument("$and", users)).Any())
+            {
+                return; //channel already exists
+            }
+            // Add channel
             channelCollection.InsertOne(new Channel { participants = participants });
         }
 
@@ -138,9 +169,29 @@ namespace Zwietracht
         {
             UserInfo user = GetUserInfoById(message.author.id);
             if (user == null || user.currentTokenSHA256 != Hasher.GetSHA256OfString(token)) return;
+            Channel c = GetChannel(channelId);
+            if (c == null) return;
             message.id = DateTime.Now.Ticks.ToString();
+            for (int i = 0; i < message.attachments.Count; i++)
+            {
+                string path = channelId + Path.DirectorySeparatorChar + message.id + Path.DirectorySeparatorChar + i;
+                string type = SaveBase64Url(message.attachments[i].base64, ZwietrachtEnvironment.dataDir + "files" + Path.DirectorySeparatorChar + path);
+                path += type;
+                path = "/cdn/" + path;
+                message.attachments[i].base64 = "";
+                message.attachments[i].relUrl = path;
+                message.attachments[i].url = config.publicAddress + path.Substring(1);
+            }
             zwietrachtDatabase.GetCollection<Message>(channelId).InsertOne(message);
             //message.author.nickname = user.nickname; // makes sure users use the right username to send messages. But it's more fun without validation.
+        }
+
+        public static string SaveBase64Url(string url, string pathWithoutFileType)
+        {
+            string fileType = HttpServer.GetFileExtension(url.Substring(url.IndexOf(":") + 1, url.IndexOf(";") - url.IndexOf(":") - 1));
+            FileManager.CreateDirectoryIfNotExisting(Path.GetDirectoryName(pathWithoutFileType));
+            File.WriteAllBytes(pathWithoutFileType + fileType, Convert.FromBase64String(url.Substring(url.IndexOf(",") + 1)));
+            return fileType;
         }
     }
 }

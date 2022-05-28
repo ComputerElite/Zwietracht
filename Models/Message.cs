@@ -12,6 +12,7 @@ namespace Zwietracht.Models
     {
         public string id { get; set; } = "";
         public User author { get; set; } = new User();
+        public List<Attachment> attachments { get; set; } = new List<Attachment>();
         public string content { get; set; } = "";
         public DateTime sendTime { get; set; } = DateTime.Now;
     }
