@@ -55,8 +55,9 @@ namespace Zwietracht
             server.AddWSRoute("/", new Action<SocketServerRequest>(request =>
             {
                 string[] req = request.bodyString.Split('|');
-                WSQueryString queryString = new WSQueryString(req);
-                if(req.Length < 2)
+                Logger.Log(request.bodyString);
+
+                if (req.Length < 2)
                 {
                     request.SendString("You must send a command: 'token|command|arg1|arg2|arg3|...'");
                     return;
@@ -65,7 +66,8 @@ namespace Zwietracht
                 switch(req[1])
                 {
                     case "messages":
-                        if(req.Length < 3)
+                        WSQueryString queryString = new WSQueryString(req);
+                        if (req.Length < 3)
                         {
                             request.SendString("You must specify a channel: 'token|messages|channelId'");
                             return;
@@ -79,8 +81,13 @@ namespace Zwietracht
                             return;
                         }
                         User me = MongoDBInteractor.GetUserByToken(token);
+                        if (me == null)
+                        {
+                            request.SendString("You are ot registered as user");
+                            return;
+                        }
                         Channel c;
-                        if(calls.ContainsKey(req[2])) c = calls[req[2]].channel;
+                        if (calls.ContainsKey(req[2])) c = calls[req[2]].channel;
                         else
                         {
                             c = MongoDBInteractor.GetChannel(req[2]);
@@ -89,12 +96,12 @@ namespace Zwietracht
                                 channel = c,
                             });
                         }
-                        if(c == null)
+                        if (c == null)
                         {
                             request.SendString("Fuck you");
                             return;
                         }
-                        if(!c.participants.Where(x => x.id == me.id).Any())
+                        if (!c.participants.Where(x => x.id == me.id).Any())
                         {
                             request.SendString("You are not part of this channel");
                             return;
@@ -103,12 +110,13 @@ namespace Zwietracht
                         string toSend = "";
                         for (int i = 0; i < chunks.Count; i++)
                         {
-                            if(chunks[i].userId == me.id)
+                            if (chunks[i].userId == me.id)
                             {
                                 calls[req[2]].chunks.RemoveAt(i);
                                 chunks = calls[req[2]].chunks;
                                 i--;
-                            } else
+                            }
+                            else
                             {
                                 toSend += chunks[i].base64 + "|";
                             }
@@ -121,6 +129,64 @@ namespace Zwietracht
                         request.SendString(toSend);
                         break;
                 }
+            }));
+            server.AddRoute("POST", "api/v1/call", new Func<ServerRequest, bool>(request =>
+            {
+                string[] req = request.bodyString.Split('|');
+                string token = req[0];
+                if (req.Length < 4)
+                {
+                    request.SendString("You must specify everything: 'token|call|channelId|audiobase64'");
+                    return true;
+                }
+                User me = MongoDBInteractor.GetUserByToken(token);
+                if (me == null)
+                {
+                    request.SendString("You are ot registered as user");
+                    return true;
+                }
+                Channel c;
+                if (calls.ContainsKey(req[2])) c = calls[req[2]].channel;
+                else
+                {
+                    c = MongoDBInteractor.GetChannel(req[2]);
+                    calls.Add(req[2], new Call
+                    {
+                        channel = c,
+                    });
+                }
+                if (c == null)
+                {
+                    request.SendString("Fuck you");
+                    return true;
+                }
+                if (!c.participants.Where(x => x.id == me.id).Any())
+                {
+                    request.SendString("You are not part of this channel");
+                    return true;
+                }
+                List<AudioChunk> chunks = calls[req[2]].chunks;
+                string toSend = "";
+                for (int i = 0; i < chunks.Count; i++)
+                {
+                    if (chunks[i].userId == me.id)
+                    {
+                        calls[req[2]].chunks.RemoveAt(i);
+                        chunks = calls[req[2]].chunks;
+                        i--;
+                    }
+                    else
+                    {
+                        toSend += chunks[i].base64 + "|";
+                    }
+                }
+                calls[req[2]].chunks.Add(new AudioChunk
+                {
+                    userId = me.id,
+                    base64 = req[3]
+                });
+                request.SendString(toSend);
+                return true;
             }));
             // Messages
             server.AddRoute("GET", "/api/v1/messages/", new Func<ServerRequest, bool>(request =>

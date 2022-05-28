@@ -65,10 +65,22 @@
                             mediaRecorder.start();
                             mediaRecorder.onstop = function(e) {
                                 var reader = new window.FileReader();
-                                reader.readAsDataURL(new Blob(audioChunks)); 
+                                reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
                                 reader.onloadend = function() {
                                     base64 = reader.result;
-                                    ws.send(localStorage.token + "|call|" + currentChannel + "|" + base64)
+                                    //console.log(base64)
+                                    tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
+                                        var chunks = res.split("|")
+                                        chunks.forEach(x => {
+                                            if(x != "") {
+                                                console.log(x)
+                                                var audio = document.createElement("audio")
+                                                audio.src = x
+                                                audio.play()
+                                            }
+                                        })
+                                    })
+                                    //ws.send()
                                 }
                             }
                             setTimeout(() => {
@@ -161,6 +173,7 @@
                         var chunks = e.data.split("|")
                         chunks.forEach(x => {
                             if(x != "") {
+                                console.log(x)
                                 var audio = document.createElement("audio")
                                 audio.src = x
                                 audio.play()
