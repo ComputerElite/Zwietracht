@@ -72,7 +72,6 @@
                                         var chunks = res.split("|")
                                         chunks.forEach(x => {
                                             if(x != "") {
-                                                console.log(x)
                                                 var audio = document.createElement("audio")
                                                 audio.src = x
                                                 audio.play()
@@ -85,7 +84,7 @@
                             setTimeout(() => {
                                 mediaRecorder.stop();
                             }, interval);
-                        }, interval - 50);
+                        }, interval);
                         
                     }).catch(err => {
                         alert("fuck you")
@@ -151,29 +150,35 @@
                     document.getElementById("images").innerHTML = html
                 }
 
+                var lastMessage = 0
+
                 ws.onmessage = (e) => {
-                    console.log("message received")
                     if(e.data.startsWith("{") || e.data.startsWith("[")) {
                         var res = JSON.parse(e.data)
                         const messages = document.getElementById("messages")
                         var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
-                        messages.innerHTML = ""
-                        var m = ""
+                        //messages.innerHTML = ""
                         res.forEach(x => {
-                            x.attachments.forEach(a => {
-                                m = `<img class="attachment" src="${a.url}">` + m
-                            })
-                            m = "<div><div class='username'>" + x.author.nickname + "</div>:<br>" + SafeFormat(x.content) + "</div>" + m
-                            
+                            if(lastMessage < parseInt(x.id))  {
+                                lastMessage = parseInt(x.id)
+                                var m = ""
+                                x.attachments.forEach(a => {
+                                    m = `<img class="attachment" src="${a.url}">` + m
+                                })
+                                m = "<div><div class='username'>" + x.author.nickname + "</div>:<br>" + SafeFormat(x.content) + "</div>" + m
+                                var message = document.createElement("div")
+                                message.className = "message"
+                                message.innerHTML = m
+                                messages.append(message)
+                            }
                         })
                         
-                        messages.innerHTML = m
+                        
                         if(scroll) messages.scrollTop = messages.scrollHeight
                     } else {
                         var chunks = e.data.split("|")
                         chunks.forEach(x => {
                             if(x != "") {
-                                console.log(x)
                                 var audio = document.createElement("audio")
                                 audio.src = x
                                 audio.play()
@@ -238,6 +243,8 @@
 
                 function OpenChannel(id) {
                     currentChannel = id
+                    messages.innerHTML = ""
+                    lastMessage = 0;
                     UpdateChannel()
                 }
 
