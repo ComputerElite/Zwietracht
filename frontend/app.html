@@ -68,19 +68,7 @@
                                 reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
                                 reader.onloadend = function() {
                                     base64 = reader.result;
-                                    //console.log(base64)
-                                    tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
-                                        var chunks = res.split("|")
-                                        chunks.forEach(x => {
-                                            if(x != "") {
-                                                console.log(x)
-                                                var audio = document.createElement("audio")
-                                                audio.src = x
-                                                audio.play()
-                                            }
-                                        })
-                                    })
-                                    //ws.send()
+                                    ws.send(localStorage.token + "|call|" + currentChannel + "|" + base64)
                                 }
                             }
                             setTimeout(() => {
