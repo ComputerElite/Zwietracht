@@ -33,6 +33,7 @@
             <input type="text" id="message" onkeydown="if(event.code == 'Enter') SendMessage()" placeholder="Type your message here">
             <input type="button" value="Send" onclick="SendMessage()">
             <input type="button" value="Upload image" onclick="UploadImage()">
+            <input type="button" value="Call" onclick="Call()">
             <div id="images">
 
             </div>
@@ -46,6 +47,40 @@
                         me = res
                         UpdateUI()
                     })
+                }
+
+                var calling = false
+                function Call() {
+                    calling = true
+                    const interval = 256
+                    navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
+                        var loopId = setInterval(() => {
+                            if(!calling) clearInterval(loopId)
+                            const mediaRecorder = new MediaRecorder(stream);
+                            let audioChunks = [];
+
+                            mediaRecorder.ondataavailable = function(e) {
+                                audioChunks.push(e.data);
+                            }
+                            mediaRecorder.start();
+                            mediaRecorder.onstop = function(e) {
+                                var reader = new window.FileReader();
+                                reader.readAsDataURL(new Blob(audioChunks)); 
+                                reader.onloadend = function() {
+                                    base64 = reader.result;
+                                    ws.send(localStorage.token + "|call|" + currentChannel + "|" + base64)
+                                }
+                            }
+                            setTimeout(() => {
+                                mediaRecorder.stop();
+                            }, interval);
+                        }, interval);
+                        
+                    }).catch(err => {
+                        alert("fuck you")
+                        console.log(err)
+                    })
+                    
                 }
                 
                 var ws = new WebSocket(location.protocol.replace("http", "ws") + "//" + window.location.host)
@@ -106,21 +141,33 @@
 
                 ws.onmessage = (e) => {
                     console.log("message received")
-                    var res = JSON.parse(e.data)
-                    const messages = document.getElementById("messages")
-                    var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
-                    messages.innerHTML = ""
-                    var m = ""
-                    res.forEach(x => {
-                        x.attachments.forEach(a => {
-                            m = `<img class="attachment" src="${a.url}">` + m
+                    if(e.data.startsWith("{") || e.data.startsWith("[")) {
+                        var res = JSON.parse(e.data)
+                        const messages = document.getElementById("messages")
+                        var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
+                        messages.innerHTML = ""
+                        var m = ""
+                        res.forEach(x => {
+                            x.attachments.forEach(a => {
+                                m = `<img class="attachment" src="${a.url}">` + m
+                            })
+                            m = "<div><div class='username'>" + x.author.nickname + "</div>:<br>" + SafeFormat(x.content) + "</div>" + m
+                            
                         })
-                        m = "<div><div class='username'>" + x.author.nickname + "</div>:<br>" + SafeFormat(x.content) + "</div>" + m
                         
-                    })
+                        messages.innerHTML = m
+                        if(scroll) messages.scrollTop = messages.scrollHeight
+                    } else {
+                        var chunks = e.data.split("|")
+                        chunks.forEach(x => {
+                            if(x != "") {
+                                var audio = document.createElement("audio")
+                                audio.src = x
+                                audio.play()
+                            }
+                        })
+                    }
                     
-                    messages.innerHTML = m
-                    if(scroll) messages.scrollTop = messages.scrollHeight
                 }
 
                 function CreateChannel() {

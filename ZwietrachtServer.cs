@@ -20,6 +20,8 @@ namespace Zwietracht
             {"{meta}", "<meta name=\"theme-color\" content=\"#63fac3\">\n<meta property=\"og:site_name\" content=\"Zwietracht\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<link rel=\"stylesheet\" href=\"/style.css\"><link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,400italic,700,700italic\" rel=\"stylesheet\" type=\"text/css\">" }
         };
 
+        public Dictionary<string, Call> calls = new Dictionary<string, Call>();
+
         public string GetToken(ServerRequest request, bool send403 = true)
         {
             string token = request.context.Request.Headers["token"];
@@ -69,6 +71,54 @@ namespace Zwietracht
                             return;
                         }
                         request.SendString(JsonSerializer.Serialize(MongoDBInteractor.GetMessages(req[2], int.Parse(queryString.Get("before") ?? "-1"), int.Parse(queryString.Get("after") ?? "-1"), int.Parse(queryString.Get("count") ?? "100"), token)));
+                        break;
+                    case "call":
+                        if (req.Length < 4)
+                        {
+                            request.SendString("You must specify everything: 'token|call|channelId|audiobase64'");
+                            return;
+                        }
+                        User me = MongoDBInteractor.GetUserByToken(token);
+                        Channel c;
+                        if(calls.ContainsKey(req[2])) c = calls[req[2]].channel;
+                        else
+                        {
+                            c = MongoDBInteractor.GetChannel(req[2]);
+                            calls.Add(req[2], new Call
+                            {
+                                channel = c,
+                            });
+                        }
+                        if(c == null)
+                        {
+                            request.SendString("Fuck you");
+                            return;
+                        }
+                        if(!c.participants.Where(x => x.id == me.id).Any())
+                        {
+                            request.SendString("You are not part of this channel");
+                            return;
+                        }
+                        List<AudioChunk> chunks = calls[req[2]].chunks;
+                        string toSend = "";
+                        for (int i = 0; i < chunks.Count; i++)
+                        {
+                            if(chunks[i].userId == me.id)
+                            {
+                                calls[req[2]].chunks.RemoveAt(i);
+                                chunks = calls[req[2]].chunks;
+                                i--;
+                            } else
+                            {
+                                toSend += chunks[i].base64 + "|";
+                            }
+                        }
+                        calls[req[2]].chunks.Add(new AudioChunk
+                        {
+                            userId = me.id,
+                            base64 = req[3]
+                        });
+                        request.SendString(toSend);
                         break;
                 }
             }));

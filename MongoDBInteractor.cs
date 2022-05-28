@@ -67,7 +67,7 @@ namespace Zwietracht
             return null;
         }
 
-        private static Channel GetChannel(string channelId)
+        public static Channel GetChannel(string channelId)
         {
             Logger.Log(channelCollection.Find(x => x.id == channelId).Any().ToString());
             return channelCollection.Find(x => x.id == channelId).FirstOrDefault();
