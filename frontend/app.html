@@ -37,7 +37,7 @@
             <div class="call" id="call">
                 <input type="button" value="End Call" onclick="EndCall()">
                 <input type="button" value="Mute yourself" onclick="Mute()">
-                <div class="inline">You are currently <div id="mutedstate" class="inline">Mutet</div></div>
+                <div class="inline">You are currently <div id="mutedstate" class="inline"></div></div>
             </div>
             <div id="images">
 
@@ -69,6 +69,7 @@
                 
                 function Call() {
                     if(calling) return;
+                    document.getElementById("mutedstate").innerHTML = muted ? "Muted" : "Unmuted"
                     calling = true
                     document.getElementById("call").style.display = "block"
                     const interval = 256
@@ -189,7 +190,7 @@
                                 x.attachments.forEach(a => {
                                     m = `<img class="attachment" src="${a.url}">` + m
                                 })
-                                m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>`
+                                m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>` + m
                                 var message = document.createElement("div")
                                 message.className = "message"
                                 message.innerHTML = m
