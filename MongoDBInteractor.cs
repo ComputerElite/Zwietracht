@@ -133,7 +133,7 @@ namespace Zwietracht
             foreach(User u in channel.participants)
             {
                 User found = GetUser(u.nickname);
-                if (found != null)
+                if (found != null && !participants.Where(x => x.id == found.id).Any())
                 {
                     participants.Add(found);
                 }
