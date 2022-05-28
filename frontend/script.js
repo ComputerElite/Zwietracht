@@ -21,8 +21,43 @@ function ChangeTextBoxProperty(id, color, innerHtml) {
     text.innerHTML = innerHtml
 }
 
+function GetTimeString(d) {
+    var date = new Date(d)
+    if(date.toLocaleDateString() == new Date(Date.now()).toLocaleDateString()) {
+        return date.toLocaleTimeString()
+    }
+    return date.toLocaleString()
+}
+
 function SafeFormat(text) {
-    return text.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    return Format(text.replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+}
+
+function Format(res) {
+    var links = []
+    const websiteRegex = /https?\:\/\/([^ ()\n\t<>\\]+(\/)?)/g
+    while ((match = websiteRegex.exec(res)) !== null) {
+        var replacement = `<a href="${match[0]}" target="_blank">${match[0]}</a>`
+        links.push({
+            absolute: replacement,
+            relative: match[0],
+            start: match.index,
+            end: websiteRegex.lastIndex
+        })
+    }
+    var length = 0
+    links.forEach(link => {
+        res = res.substring(0, link.start + length) + res.substring(link.end + length, res.length)
+        res = InsertString(link.absolute, link.start + length, res)
+        length += link.absolute.length - link.relative.length
+    })
+    res = res.replace(/\\n/g, "<br>")
+    res = res.replace(/\t/g, "&emsp;&emsp;&emsp;&emsp;")
+    return res
+}
+
+function InsertString(toInsert, position, text) {
+    return [text.slice(0, position), toInsert, text.slice(position)].join('')
 }
 
 function tfetch(url, method = "GET", body = "") {

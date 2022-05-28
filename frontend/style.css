@@ -9,6 +9,7 @@ html {
     --redDark: #ab0d0e;
     --textColor: #EEEEEE;
     --bgColor: #181A1B;
+    --dateColor: #758085;
     --hightlightColor: #202324;
     --hightlightColorIntense: #424546;
     --hoverColor: #2B2F31;
@@ -19,9 +20,35 @@ html {
     font-size: 18px!important;
 }
 
+.date {
+    color: var(--dateColor);
+    font-size: .9em;
+}
+
+.message {
+    margin-top: 10px;
+}
+
 .attachment {
     margin-left: 20px;
     max-width: 90%;
+}
+
+.call {
+    position: fixed;
+    padding: 10px;
+    top: 0px;
+    left: 0px;
+    background-color: #415245dd;
+    width: 100vw;
+}
+
+.inline {
+    display: inline;
+}
+
+.call {
+    display: none;
 }
 
 .username {

@@ -34,6 +34,11 @@
             <input type="button" value="Send" onclick="SendMessage()">
             <input type="button" value="Upload image" onclick="UploadImage()">
             <input type="button" value="Call" onclick="Call()">
+            <div class="call" id="call">
+                <input type="button" value="End Call" onclick="EndCall()">
+                <input type="button" value="Mute yourself" onclick="Mute()">
+                <div class="inline">You are currently <div id="mutedstate" class="inline">Mutet</div></div>
+            </div>
             <div id="images">
 
             </div>
@@ -50,12 +55,30 @@
                 }
 
                 var calling = false
+                var muted = false
+
+                function Mute() {
+                    muted = !muted
+                    document.getElementById("mutedstate").innerHTML = muted ? "Muted" : "Unmuted"
+                }
+
+                function EndCall() {
+                    calling = false
+                }
+
+                
                 function Call() {
+                    if(calling) return;
                     calling = true
+                    document.getElementById("call").style.display = "block"
                     const interval = 256
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         var loopId = setInterval(() => {
-                            if(!calling) clearInterval(loopId)
+                            if(!calling)
+                            {
+                                document.getElementById("call").style.display = "none"
+                                clearInterval(loopId)
+                            }
                             const mediaRecorder = new MediaRecorder(stream);
                             let audioChunks = [];
 
@@ -68,23 +91,24 @@
                                 reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
                                 reader.onloadend = function() {
                                     base64 = reader.result;
-                                    tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
-                                        var chunks = res.split("|")
-                                        chunks.forEach(x => {
-                                            if(x != "") {
-                                                var audio = document.createElement("audio")
-                                                audio.src = x
-                                                audio.play()
-                                            }
+                                    if(!muted) {
+                                        tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
+                                            var chunks = res.split("|")
+                                            chunks.forEach(x => {
+                                                if(x != "") {
+                                                    var audio = document.createElement("audio")
+                                                    audio.src = x
+                                                    audio.play()
+                                                }
+                                            })
                                         })
-                                    })
-                                    //ws.send()
+                                    }
                                 }
                             }
                             setTimeout(() => {
                                 mediaRecorder.stop();
                             }, interval);
-                        }, interval);
+                        }, interval - 20);
                         
                     }).catch(err => {
                         alert("fuck you")
@@ -165,7 +189,7 @@
                                 x.attachments.forEach(a => {
                                     m = `<img class="attachment" src="${a.url}">` + m
                                 })
-                                m = "<div><div class='username'>" + x.author.nickname + "</div>:<br>" + SafeFormat(x.content) + "</div>" + m
+                                m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>`
                                 var message = document.createElement("div")
                                 message.className = "message"
                                 message.innerHTML = m
@@ -254,8 +278,13 @@
                     const channels = document.getElementById("channels")
                     channels.innerHTML = "";
                     me.channels.forEach(x => {
+                        var participants = ""
+                        x.participants.forEach(p => {
+                            if(p.id != me.id || x.participants.length < 2) participants += p.nickname + ", ";
+                        })
+                        if(participants.length > 0) participants = participants.substring(0, participants.length - 2)
                         channels.innerHTML += `<div class="channel">
-                                <a onclick="OpenChannel('${x.id}')">${x.participants.map(x => x.nickname).join(', ')}</a>
+                                <a onclick="OpenChannel('${x.id}')">${participants}</a>
                             </div>`
                     })
                 }
