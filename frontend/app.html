@@ -52,7 +52,7 @@
                 var calling = false
                 function Call() {
                     calling = true
-                    const interval = 512
+                    const interval = 256
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         var loopId = setInterval(() => {
                             if(!calling) clearInterval(loopId)
@@ -68,7 +68,6 @@
                                 reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
                                 reader.onloadend = function() {
                                     base64 = reader.result;
-                                    //console.log(base64)
                                     tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
                                         var chunks = res.split("|")
                                         chunks.forEach(x => {
@@ -86,7 +85,7 @@
                             setTimeout(() => {
                                 mediaRecorder.stop();
                             }, interval);
-                        }, interval);
+                        }, interval - 50);
                         
                     }).catch(err => {
                         alert("fuck you")
@@ -98,7 +97,8 @@
                 var ws = new WebSocket(location.protocol.replace("http", "ws") + "//" + window.location.host)
 
                 ws.onopen = () => {
-                    console.log("connection opened")
+                    console.log("connection opened, registering on server")
+                    ws.send(localStorage.token + "|register")
                 }
 
                 var attachments = []
