@@ -177,14 +177,24 @@
 
                 var lastMessage = 0
 
+                function PlayPing() {
+                    var audio = document.createElement("audio")
+                    audio.src = "/ping.mp3"
+                    audio.play()
+                }
+
+                var first = false;
+
                 ws.onmessage = (e) => {
                     if(e.data.startsWith("{") || e.data.startsWith("[")) {
+                        
                         var res = JSON.parse(e.data)
                         const messages = document.getElementById("messages")
                         var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
                         //messages.innerHTML = ""
                         res.reverse().forEach(x => {
                             if(lastMessage < parseInt(x.id))  {
+                                if(!first) PlayPing()
                                 lastMessage = parseInt(x.id)
                                 var m = ""
                                 x.attachments.forEach(a => {
@@ -198,7 +208,7 @@
                             }
                         })
                         
-                        
+                        first = false;
                         if(scroll) messages.scrollTop = messages.scrollHeight
                     } else {
                         var chunks = e.data.split("|")
@@ -256,6 +266,7 @@
                         content: document.getElementById("message").value
                     })).then(res => {
                         AfterSendCleanup()
+                        first = true
                         UpdateChannel()
                     })
                 }
@@ -268,6 +279,7 @@
 
                 function OpenChannel(id) {
                     currentChannel = id
+                    first = true
                     messages.innerHTML = ""
                     lastMessage = 0;
                     UpdateChannel()

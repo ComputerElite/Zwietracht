@@ -240,6 +240,7 @@ namespace Zwietracht
             server.AddRouteFile("/admin", frontend + "admin.html", replace, true, true, true);
             server.AddRouteFile("/style.css", frontend + "style.css", replace, true, true, true);
             server.AddRouteFile("/script.js", frontend + "script.js", replace, true, true, true);
+            server.AddRouteFile("/ping.mp3", frontend + "ping.mp3", true, true, true);
             server.StartServer(config.port);
         }
     }
