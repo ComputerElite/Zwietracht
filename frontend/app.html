@@ -52,7 +52,7 @@
                 var calling = false
                 function Call() {
                     calling = true
-                    const interval = 1024
+                    const interval = 512
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         var loopId = setInterval(() => {
                             if(!calling) clearInterval(loopId)
