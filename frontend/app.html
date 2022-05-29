@@ -32,12 +32,15 @@
             </div>
             <input type="text" id="message" onkeydown="if(event.code == 'Enter') SendMessage()" placeholder="Type your message here">
             <input type="button" value="Send" onclick="SendMessage()">
-            <input type="button" value="Upload image" onclick="UploadImage()">
-            <input type="button" value="Call" onclick="Call()">
+            <input type="button" value="Upload file" onclick="UploadImage()">
+            <input type="button" value="Join Call" onclick="Call()">
             <div class="call" id="call">
                 <input type="button" value="End Call" onclick="EndCall()">
-                <input type="button" value="Mute yourself" onclick="Mute()">
-                <div class="inline">You are currently <div id="mutedstate" class="inline"></div></div>
+                <input type="button" id="muteButton" value="Mute" onclick="Mute()">
+                <div class="inline">You are currently <div id="mutedstate" class="inline">Unmuted</div></div>
+                <div class="slidecontainer">
+                    <input type="range" min="0" max="100" value="100" class="slider" id="masterVolume">
+                </div>
             </div>
             <div id="images">
 
@@ -45,8 +48,30 @@
             <script src="script.js"></script>
             <script>
                 var me = {}
+                var channels = []
                 var currentChannel = 0
+                var lastMessage = 0
+                var first = false;
+                var lastMessageId = "0" // string
+                var lastReadMessageId = "0" // string
+                var volume = 1.0
+                var attachments = []
+                var ws = new WebSocket(location.protocol.replace("http", "ws") + "//" + window.location.host)
+                var calling = false
+                var muted = false
+                var unread = 999999999
+
                 RequestMe()
+                RequestChannels()
+
+                setInterval(() => {
+                    UpdateChannel()
+                }, 1000)
+
+                setInterval(() => {
+                    RequestChannels()
+                }, 10000)
+
                 function RequestMe() {
                     jfetch("/api/v1/me").then(res => {
                         me = res
@@ -54,25 +79,35 @@
                     })
                 }
 
-                var calling = false
-                var muted = false
+                function RequestChannels() {
+                    jfetch("/api/v1/channels").then(res => {
+                        channels = res
+                        UpdateUI()
+                    })
+                }
 
+
+                // Calls
                 function Mute() {
                     muted = !muted
                     document.getElementById("mutedstate").innerHTML = muted ? "Muted" : "Unmuted"
+                    document.getElementById("muteButton").value = muted ? "Unmute" : "Mute"
                 }
 
                 function EndCall() {
                     calling = false
                 }
-
                 
+                var interval = 256
+                var callChannelId = ""
                 function Call() {
                     if(calling) return;
+                    SendMessage(`${me.nickname} is calling you!`)
+                    callChannelId = currentChannel
                     document.getElementById("mutedstate").innerHTML = muted ? "Muted" : "Unmuted"
                     calling = true
                     document.getElementById("call").style.display = "block"
-                    const interval = 256
+                    
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         var loopId = setInterval(() => {
                             if(!calling)
@@ -93,16 +128,7 @@
                                 reader.onloadend = function() {
                                     base64 = reader.result;
                                     if(!muted) {
-                                        tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + currentChannel + "|" + base64).then(res => {
-                                            var chunks = res.split("|")
-                                            chunks.forEach(x => {
-                                                if(x != "") {
-                                                    var audio = document.createElement("audio")
-                                                    audio.src = x
-                                                    audio.play()
-                                                }
-                                            })
-                                        })
+                                        tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64)
                                     }
                                 }
                             }
@@ -118,30 +144,66 @@
                     
                 }
                 
-                var ws = new WebSocket(location.protocol.replace("http", "ws") + "//" + window.location.host)
-
+                // WS handling
                 ws.onopen = () => {
                     console.log("connection opened, registering on server")
                     //ws.send(localStorage.token + "|register")
                 }
+                
+                ws.onmessage = (e) => {
+                    if(e.data.startsWith("{") || e.data.startsWith("[")) {
+                        var res = JSON.parse(e.data)
+                        const messages = document.getElementById("messages")
+                        var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
+                        //messages.innerHTML = ""
+                        res.reverse().forEach(x => {
+                            if(lastMessage < parseInt(x.id))  {
+                                if(!first) PlayPing()
+                                lastMessageId = x.id // string
+                                lastMessage = parseInt(x.id) // float
+                                var m = ""
+                                x.attachments.forEach(a => {
+                                    m = FormatAttachment(a.relUrl, a.mimeType, a.filename) + m
+                                })
+                                m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>` + m
+                                var message = document.createElement("div")
+                                message.className = "message"
+                                message.innerHTML = m
+                                messages.append(message)
+                            }
+                        })
+                        
+                        first = false;
+                        if(scroll)
+                        {
+                            messages.scrollTop = messages.scrollHeight
+                            if(lastReadMessageId != lastMessageId) {
+                                ws.send(localStorage.token + "|read|" + currentChannel + "|" + lastMessageId)
+                                lastReadMessageId = lastMessageId
+                            }
+                        }
+                    } else {
+                        PlayUserAudio(e.data.split('|')[0])
+                    }
+                }
 
-                var attachments = []
-
+                // attachment handling
                 function UploadImage() {
                     var input = document.createElement("input")
                     input.setAttribute("type", "file")
-                    input.setAttribute("accept", "image/*")
+                    //input.setAttribute("accept", "image/*")
                     input.click()
 
                     input.onchange = function (e) {
                         if (!this.files[0]) {
                             return;
                         }
-
+                        var filename = this.files[0].name
                         var reader = new FileReader();
                         reader.onload = function(e) {
                             attachments.push({
-                                base64: e.target.result
+                                base64: e.target.result,
+                                filename: filename
                             })
                             UpdateMessageUI()
                         }
@@ -167,60 +229,50 @@
                     }
                 }
 
+                function GetMimeTypeFromBase64(url) {
+                    console.log(url.substr(url.indexOf(":") + 1, url.indexOf(";") - url.indexOf(":") - 1))
+                    return url.substr(url.indexOf(":") + 1, url.indexOf(";") - url.indexOf(":") - 1)
+                }
+
                 function UpdateMessageUI() {
                     var html = ""
                     for (var i = 0; i < attachments.length; i++) {
-                        html += "<img src='" + attachments[i].base64 + "'>"
+                        console.log(FormatAttachment(attachments[i].base64, GetMimeTypeFromBase64(attachments[i].base64), attachments[i].filename))
+                        html += FormatAttachment(attachments[i].base64, GetMimeTypeFromBase64(attachments[i].base64), attachments[i].filename)
                     }
                     document.getElementById("images").innerHTML = html
                 }
 
-                var lastMessage = 0
-
-                function PlayPing() {
-                    var audio = document.createElement("audio")
-                    audio.src = "/ping.mp3"
-                    audio.play()
+                function FormatAttachment(src, mimeType, filename = "untitled") {
+                    if(!filename) filename = "untitled"
+                    if(mimeType.includes("image")) {
+                        return `<img class="image" src="${src}">`
+                    } else if(mimeType.includes("audio")) {
+                        return `<audio src="${src}" controls></audio>`	
+                    } else if(mimeType.includes("video")) {
+                        return `<video src="${src}" controls></video>`
+                    } else {
+                        return `<a href="${src}">${filename}</a>`
+                    }
                 }
 
-                var first = false;
+               
+                // Audio helpers
+                function PlayPing() {
+                    PlayAudio("/ping.mp3", 1.0)
+                }
 
-                ws.onmessage = (e) => {
-                    if(e.data.startsWith("{") || e.data.startsWith("[")) {
-                        
-                        var res = JSON.parse(e.data)
-                        const messages = document.getElementById("messages")
-                        var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
-                        //messages.innerHTML = ""
-                        res.reverse().forEach(x => {
-                            if(lastMessage < parseInt(x.id))  {
-                                if(!first) PlayPing()
-                                lastMessage = parseInt(x.id)
-                                var m = ""
-                                x.attachments.forEach(a => {
-                                    m = `<img class="attachment" src="${a.url}">` + m
-                                })
-                                m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>` + m
-                                var message = document.createElement("div")
-                                message.className = "message"
-                                message.innerHTML = m
-                                messages.append(message)
-                            }
-                        })
-                        
-                        first = false;
-                        if(scroll) messages.scrollTop = messages.scrollHeight
-                    } else {
-                        var chunks = e.data.split("|")
-                        chunks.forEach(x => {
-                            if(x != "") {
-                                var audio = document.createElement("audio")
-                                audio.src = x
-                                audio.play()
-                            }
-                        })
+                function PlayUserAudio(base64) {
+                    volume = document.getElementById("masterVolume").value / 100
+                    if(base64 != "") {
+                        PlayAudio(base64, volume)
                     }
-                    
+                }
+
+                function PlayAudio(src, volume) {
+                    var a = new Audio(src);
+                    a.volume = volume
+                    a.play();
                 }
 
                 function CreateChannel() {
@@ -236,18 +288,11 @@
                     tfetch("/api/v1/createchannel", "POST", JSON.stringify({
                         participants: participants
                     })).then(res => {
-                        RequestMe()
+                        RequestChannels()
                     })
                 }
 
-                setInterval(() => {
-                    UpdateChannel()
-                }, 1000)
-
-                setInterval(() => {
-                    RequestMe()
-                }, 10000)
-
+                // message updating
                 function UpdateChannel() {
                     if(currentChannel == 0) {
                         document.getElementById("messages").innerHTML = "Select a channel"
@@ -256,14 +301,16 @@
                     ws.send(`${localStorage.token}|messages|${currentChannel}`)
                 }
 
-                function SendMessage() {
+                // message sending
+                function SendMessage(message) {
+                    if(!message) message = document.getElementById("message").value
                     tfetch("/api/v1/messages/" + currentChannel, "POST", JSON.stringify({
                         author: {
                             nickname: me.nickname,
                             id: me.id
                         },
                         attachments: attachments,
-                        content: document.getElementById("message").value
+                        content: message
                     })).then(res => {
                         AfterSendCleanup()
                         first = true
@@ -277,6 +324,7 @@
                     UpdateMessageUI()
                 }
 
+                // channel switching
                 function OpenChannel(id) {
                     currentChannel = id
                     first = true
@@ -285,21 +333,28 @@
                     UpdateChannel()
                 }
 
+                // channel ui updating
                 function UpdateUI() {
                     document.getElementById("nickname").innerHTML = SafeFormat(me.nickname)
                     document.getElementById("id").innerHTML = SafeFormat(me.id.toString())
-                    const channels = document.getElementById("channels")
-                    channels.innerHTML = "";
-                    me.channels.forEach(x => {
+                    const c = document.getElementById("channels")
+                    c.innerHTML = "";
+                    var currentUnread = 0
+                    channels.forEach(x => {
+                        currentUnread += x.unread
                         var participants = ""
                         x.participants.forEach(p => {
                             if(p.id != me.id || x.participants.length < 2) participants += p.nickname + ", ";
                         })
                         if(participants.length > 0) participants = participants.substring(0, participants.length - 2)
-                        channels.innerHTML += `<div class="channel">
-                                <a onclick="OpenChannel('${x.id}')">${participants}</a>
+                        c.innerHTML += `<div class="channel">
+                                <a onclick="OpenChannel('${x.id}')">${participants} (${x.unread})</a>
                             </div>`
                     })
+                    if(currentUnread > unread) {
+                        PlayPing()
+                    }
+                    unread = currentUnread
                 }
             </script>
         </div>

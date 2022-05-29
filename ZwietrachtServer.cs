@@ -98,7 +98,7 @@ namespace Zwietracht
                 else
                 {
                     Logger.Log("Sending to " + cs[i].userId, LoggingType.Important);
-                    clients[cs[i].userId].request.SendString(req[3]);
+                    clients[cs[i].userId].request.SendString(req[3] + "|" + cs[i].userId);
                 }
             }
             
@@ -144,6 +144,14 @@ namespace Zwietracht
                         }
                         request.SendString(JsonSerializer.Serialize(MongoDBInteractor.GetMessages(req[2], int.Parse(queryString.Get("before") ?? "-1"), int.Parse(queryString.Get("after") ?? "-1"), int.Parse(queryString.Get("count") ?? "100"), token)));
                         break;
+                    case "read":
+                        if (req.Length < 3)
+                        {
+                            request.SendString("You must specify a channel: 'token|read|channelId|readMessageId'");
+                            return;
+                        }
+                        MongoDBInteractor.ReadAll(req[2], req[3], token);
+                        break;
                 }
             }));
             server.AddRoute("POST", "api/v1/call", new Func<ServerRequest, bool>(request =>
@@ -178,6 +186,11 @@ namespace Zwietracht
             server.AddRoute("GET", "/api/v1/me/", new Func<ServerRequest, bool>(request =>
             {
                 request.SendString(JsonSerializer.Serialize(MongoDBInteractor.Me(GetToken(request))));
+                return true;
+            }));
+            server.AddRoute("GET", "/api/v1/channels", new Func<ServerRequest, bool>(request =>
+            {
+                request.SendString(JsonSerializer.Serialize(MongoDBInteractor.MyChannels(GetToken(request))));
                 return true;
             }));
 
