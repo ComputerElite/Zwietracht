@@ -20,8 +20,8 @@ namespace Zwietracht
             {"{meta}", "<meta name=\"theme-color\" content=\"#63fac3\">\n<meta property=\"og:site_name\" content=\"Zwietracht\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<link rel=\"stylesheet\" href=\"/style.css\"><link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,400italic,700,700italic\" rel=\"stylesheet\" type=\"text/css\">" }
         };
 
-        public Dictionary<string, Call> calls = new Dictionary<string, Call>();
-        public Dictionary<string, Client> clients = new Dictionary<string, Client>();
+        public static Dictionary<string, Call> calls = new Dictionary<string, Call>();
+        public static Dictionary<string, Client> clients = new Dictionary<string, Client>();
 
         public string GetToken(ServerRequest request, bool send403 = true)
         {
@@ -78,7 +78,7 @@ namespace Zwietracht
                 return "You are not part of this channel";
             }
             
-            DateTime now = DateTime.Now;
+            DateTime now = DateTime.UtcNow;
             if (!calls[req[2]].clients.Where(x => x.userId == me.id).Any())
             {
                 calls[req[2]].clients.Add(clients[me.id]);

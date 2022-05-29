@@ -34,14 +34,20 @@
             <input type="button" value="Send" onclick="SendMessage()">
             <input type="button" value="Upload file" onclick="UploadImage()">
             <input type="button" value="Join Call" onclick="Call()">
-            <div class="call" id="call">
-                <input type="button" value="End Call" onclick="EndCall()">
-                <input type="button" id="muteButton" value="Mute" onclick="Mute()">
-                <div class="inline">You are currently <div id="mutedstate" class="inline">Unmuted</div></div>
-                <div class="slidecontainer">
-                    <input type="range" min="0" max="100" value="100" class="slider" id="masterVolume">
+            <div class="top">
+                <div class="call" id="call">
+                    <input type="button" value="End Call" onclick="EndCall()">
+                    <input type="button" id="muteButton" value="Mute" onclick="Mute()">
+                    <div class="inline">You are currently <div id="mutedstate" class="inline">Unmuted</div></div>
+                    <div class="inline">ping: <div class="inline" id="ping"></div></div>
+                    <div class="slidecontainer inline">
+                        <input type="range" min="0" max="100" value="100" class="slider" id="masterVolume">
+                    </div>
+                </div>
+                <div class="error" id="error">
                 </div>
             </div>
+            
             <div id="images">
 
             </div>
@@ -61,6 +67,7 @@
                 var muted = false
                 var unread = 999999999
 
+                OpenWebSocket()
                 RequestMe()
                 RequestChannels()
 
@@ -75,6 +82,10 @@
                 function RequestMe() {
                     jfetch("/api/v1/me").then(res => {
                         me = res
+                        if(!me.nickname) {
+                            alert("You are not logged in. Please log in.")
+                            location = "/"
+                        }
                         UpdateUI()
                     })
                 }
@@ -84,6 +95,15 @@
                         channels = res
                         UpdateUI()
                     })
+                }
+
+                function ShowError(error) {
+                    document.getElementById("error").innerHTML = error
+                    document.getElementById("error").style.display = "block"
+                }
+
+                function HideError(error) {
+                    document.getElementById("error").style.display = "none"
                 }
 
 
@@ -114,6 +134,11 @@
                             {
                                 document.getElementById("call").style.display = "none"
                                 clearInterval(loopId)
+                                stream.getTracks().forEach(x => {
+                                    x.stop()
+                                })
+                                SendMessage(`${me.nickname} left the call`)
+                                return
                             }
                             const mediaRecorder = new MediaRecorder(stream);
                             let audioChunks = [];
@@ -128,14 +153,17 @@
                                 reader.onloadend = function() {
                                     base64 = reader.result;
                                     if(!muted) {
-                                        tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64)
+                                        var start = Date.now()
+                                        tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
+                                            document.getElementById("ping").innerHTML = Date.now() - start + " ms"
+                                        })
                                     }
                                 }
                             }
                             setTimeout(() => {
                                 mediaRecorder.stop();
                             }, interval);
-                        }, interval - 20);
+                        }, interval);
                         
                     }).catch(err => {
                         alert("fuck you")
@@ -145,47 +173,66 @@
                 }
                 
                 // WS handling
-                ws.onopen = () => {
-                    console.log("connection opened, registering on server")
-                    //ws.send(localStorage.token + "|register")
-                }
-                
-                ws.onmessage = (e) => {
-                    if(e.data.startsWith("{") || e.data.startsWith("[")) {
-                        var res = JSON.parse(e.data)
-                        const messages = document.getElementById("messages")
-                        var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
-                        //messages.innerHTML = ""
-                        res.reverse().forEach(x => {
-                            if(lastMessage < parseInt(x.id))  {
-                                if(!first) PlayPing()
-                                lastMessageId = x.id // string
-                                lastMessage = parseInt(x.id) // float
-                                var m = ""
-                                x.attachments.forEach(a => {
-                                    m = FormatAttachment(a.relUrl, a.mimeType, a.filename) + m
-                                })
-                                m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>` + m
-                                var message = document.createElement("div")
-                                message.className = "message"
-                                message.innerHTML = m
-                                messages.append(message)
+                function OpenWebSocket() {
+                    ws = new WebSocket(location.protocol.replace("http", "ws") + "//" + window.location.host)
+
+                    ws.onopen = () => {
+                        console.log("connection opened, registering on server")
+                        //ws.send(localStorage.token + "|register")
+                    }
+
+                    ws.onclose = e => {
+                        console.log(e)
+                        ShowError("Websocket connection closed unexpectedly. Trying to reconnect...")
+                        var reconnectLoop = setInterval(() => {
+                            if(ws.readyState == 1) {
+                                clearInterval(reconnectLoop)
+                                HideError()
+                                return;
                             }
-                        })
-                        
-                        first = false;
-                        if(scroll)
-                        {
-                            messages.scrollTop = messages.scrollHeight
-                            if(lastReadMessageId != lastMessageId) {
-                                ws.send(localStorage.token + "|read|" + currentChannel + "|" + lastMessageId)
-                                lastReadMessageId = lastMessageId
+                            OpenWebSocket()
+                        }, 1000)
+                    }
+                    
+                    ws.onmessage = (e) => {
+                        if(e.data.startsWith("{") || e.data.startsWith("[")) {
+                            var res = JSON.parse(e.data)
+                            const messages = document.getElementById("messages")
+                            var scroll = messages.scrollHeight - messages.clientHeight <= messages.scrollTop + 1;
+                            //messages.innerHTML = ""
+                            res.reverse().forEach(x => {
+                                if(lastMessage < parseInt(x.id))  {
+                                    if(!first) PlayPing()
+                                    lastMessageId = x.id // string
+                                    lastMessage = parseInt(x.id) // float
+                                    var m = ""
+                                    x.attachments.forEach(a => {
+                                        m = FormatAttachment(a.relUrl, a.mimeType, a.filename) + m
+                                    })
+                                    m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>` + m
+                                    var message = document.createElement("div")
+                                    message.className = "message"
+                                    message.innerHTML = m
+                                    messages.append(message)
+                                }
+                            })
+                            
+                            first = false;
+                            if(scroll)
+                            {
+                                messages.scrollTop = messages.scrollHeight
+                                if(lastReadMessageId != lastMessageId) {
+                                    ws.send(localStorage.token + "|read|" + currentChannel + "|" + lastMessageId)
+                                    lastReadMessageId = lastMessageId
+                                }
                             }
+                        } else {
+                            PlayUserAudio(e.data.split('|')[0])
                         }
-                    } else {
-                        PlayUserAudio(e.data.split('|')[0])
                     }
                 }
+
+                
 
                 // attachment handling
                 function UploadImage() {
@@ -348,7 +395,7 @@
                         })
                         if(participants.length > 0) participants = participants.substring(0, participants.length - 2)
                         c.innerHTML += `<div class="channel">
-                                <a onclick="OpenChannel('${x.id}')">${participants} (${x.unread})</a>
+                                <a onclick="OpenChannel('${x.id}')">${participants} (${x.unread}${x.callActive ? "; call active" : ""})</a>
                             </div>`
                     })
                     if(currentUnread > unread) {

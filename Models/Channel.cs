@@ -32,5 +32,6 @@ namespace Zwietracht.Models
         [JsonIgnore]
         public long lastReadLong { get; set; } = 0;
         public long unread { get; set; } = 0;
+        public bool callActive { get; set; } = false;
     }
 }

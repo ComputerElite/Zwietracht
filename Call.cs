@@ -13,14 +13,14 @@ namespace Zwietracht
     {
         public string base64 { get; set; } = "";
         public string userId { get; set; } = "";
-        public DateTime sent { get; set; } = DateTime.Now;
+        public DateTime sent { get; set; } = DateTime.UtcNow;
         public Client client { get; set; } = new Client();
     }
 
     public class Client
     {
         public SocketServerRequest request { get; set; } = null;
-        public DateTime recieved { get; set; } = DateTime.Now;
+        public DateTime recieved { get; set; } = DateTime.UtcNow;
         public string userId { get; set; } = "";
     }
 }

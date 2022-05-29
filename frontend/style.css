@@ -46,21 +46,30 @@ html {
     max-width: 90%;
 }
 
-.call {
+.top {
     position: fixed;
-    padding: 10px;
     top: 0px;
     left: 0px;
+    background-color: #00000000;
+    width: 100vw;
+}
+
+.error {
+    padding: 10px;
+    background-color: #581612dd;
+    color: #ff3c32;
+    display: none;
+}
+
+.call {
+    padding: 10px;
     background-color: #415245dd;
     width: 100vw;
+    display: none;
 }
 
 .inline {
     display: inline;
-}
-
-.call {
-    display: none;
 }
 
 .username {

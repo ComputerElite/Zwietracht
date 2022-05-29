@@ -191,14 +191,33 @@ namespace Zwietracht
             User u = GetUserByToken(token);
             if (u == null) return new List<Channel>();
             List<Channel> allChannels = GetChannels(u.idLong);
+            // set lastRead message to channels
             for(int i = 0; i < u.channels.Count; i++)
             {
                 allChannels.Where(x => x.idLong == u.channels[i].idLong).ToList().ForEach(x => x.lastReadLong = u.channels[i].lastReadLong);
             }
+
+            DateTime now = DateTime.UtcNow;
             for(int i = 0; i < allChannels.Count; i++)
             {
+                // Count unread messages
                 allChannels[i].unread = zwietrachtDatabase.GetCollection<Message>(allChannels[i].id).Find(x => x.idLong > allChannels[i].lastReadLong).CountDocuments();
-                Logger.Log(allChannels[i].unread + " after " + allChannels[i].lastReadLong, LoggingType.Important);
+                allChannels[i].callActive = false;
+                if (ZwietrachtServer.calls.ContainsKey(allChannels[i].id))
+                {
+                    
+                    // Remove inactive participants
+                    for(int ii = 0; ii < ZwietrachtServer.calls[allChannels[i].id].clients.Count; ii++)
+                    {
+                        if (ZwietrachtServer.calls[allChannels[i].id].clients[ii].recieved + new TimeSpan(0, 0, 5) < now)
+                        {
+                            ZwietrachtServer.calls[allChannels[i].id].clients.RemoveAt(ii);
+                            ii--;
+                        }
+                    }
+                    // Set callActive
+                    allChannels[i].callActive = ZwietrachtServer.calls[allChannels[i].id].clients.Count > 0;
+                }
             }
             u.channels = allChannels;
             UpdateUserChannels(u);
