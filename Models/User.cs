@@ -25,6 +25,7 @@ namespace Zwietracht.Models
         }
         [JsonIgnore]
         public long idLong { get; set; } = DateTime.UtcNow.Ticks;
+        [JsonIgnore]
         public List<Channel> channels { get; set; } = new List<Channel>();
     }
 }

@@ -1,4 +1,5 @@
 ﻿using ComputerUtils.Webserver;
+using System.Text.Json.Serialization;
 using Zwietracht.Models;
 
 namespace Zwietracht
@@ -19,8 +20,9 @@ namespace Zwietracht
 
     public class Client
     {
+        [JsonIgnore]
         public SocketServerRequest request { get; set; } = null;
-        public DateTime recieved { get; set; } = DateTime.UtcNow;
+        public DateTime received { get; set; } = DateTime.UtcNow;
         public string userId { get; set; } = "";
     }
 }

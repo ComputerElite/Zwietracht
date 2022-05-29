@@ -94,6 +94,7 @@ namespace Zwietracht
 
         public static void UpdateUserChannels(User u)
         {
+            u.channels.ForEach(x => x.participants.ForEach(x => x.channels = new List<Channel>()));
             userCollection.UpdateOne(x => x.idLong == u.idLong, Builders<UserInfo>.Update.Set(x => x.channels, u.channels));
         }
 
@@ -209,7 +210,7 @@ namespace Zwietracht
                     // Remove inactive participants
                     for(int ii = 0; ii < ZwietrachtServer.calls[allChannels[i].id].clients.Count; ii++)
                     {
-                        if (ZwietrachtServer.calls[allChannels[i].id].clients[ii].recieved + new TimeSpan(0, 0, 5) < now)
+                        if (ZwietrachtServer.calls[allChannels[i].id].clients[ii].received + new TimeSpan(0, 0, 5) < now)
                         {
                             ZwietrachtServer.calls[allChannels[i].id].clients.RemoveAt(ii);
                             ii--;

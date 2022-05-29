@@ -86,14 +86,14 @@ namespace Zwietracht
             List<Client> cs = calls[req[2]].clients;
             for (int i = 0; i < cs.Count; i++)
             {
-                if (cs[i].recieved + new TimeSpan(0, 0, 5) < now)
+                if (cs[i].received + new TimeSpan(0, 0, 5) < now)
                 {
                     calls[req[2]].clients.RemoveAt(i);
                     cs = calls[req[2]].clients;
                     i--;
                 } else if(cs[i].userId == me.id)
                 {
-                    calls[req[2]].clients[i].recieved = now;
+                    calls[req[2]].clients[i].received = now;
                 }
                 else
                 {
@@ -154,6 +154,23 @@ namespace Zwietracht
                         break;
                 }
             }));
+            server.AddRoute("GET", "/api/v1/call/", new Func<ServerRequest, bool>(request =>
+            {
+                if(!calls.ContainsKey(request.pathDiff))
+                {
+                    request.SendString("{}", "application/json", 404);
+                    return true;
+                }
+                Call c = calls[request.pathDiff];
+                User me = MongoDBInteractor.GetUserByToken(GetToken(request));
+                if(c.channel.participants.Where(x => x.idLong == me.idLong) == null)
+                {
+                    request.SendString("{}", "application/json", 403);
+                    return true;
+                }
+                request.SendString(JsonSerializer.Serialize(c));
+                return true;
+            }), true);
             server.AddRoute("POST", "api/v1/call", new Func<ServerRequest, bool>(request =>
             {
                 string[] req = request.bodyString.Split('|');

@@ -20,20 +20,32 @@
                     <td id="id">loading, please wait</td>
                 </tr>
             </table>
-            <h2>Create channel</h2>
+            <h2 id="channelsAnker">Create channel</h2>
             Seperate participants by comma
             <input type="text" id="participants" placeholder="ComputerElite, EnderdracheLP">
             <input type="button" value="Create" onclick="CreateChannel()">
             <h2>Channels</h2>
             <div id="channels">loading, please wait</div>
-            <h2>Chat</h2>
-            <div id="messages">
-                Select a channel
+            <div class="chatContainer">
+                <h2 id="channelName">Chat</h2>
+                <ol id="messages" class="messages">
+                    <li>Select a channel</li>
+                </ol>
+                <div class="call" id="info">
+                    
+                </div>
+                <div class="input" id="input">
+                    <input type="text" id="message" onkeydown="if(event.code == 'Enter') SendMessage()" placeholder="Type your message here">
+                    <input type="button" value="Send" onclick="SendMessage()">
+                    <input type="button" value="Upload file" onclick="UploadImage()">
+                    <input type="button" value="Join Call" onclick="Call()">
+                </div>
+                <div id="attachments">
+
+                </div>
             </div>
-            <input type="text" id="message" onkeydown="if(event.code == 'Enter') SendMessage()" placeholder="Type your message here">
-            <input type="button" value="Send" onclick="SendMessage()">
-            <input type="button" value="Upload file" onclick="UploadImage()">
-            <input type="button" value="Join Call" onclick="Call()">
+            
+            
             <div class="top">
                 <div class="call" id="call">
                     <input type="button" value="End Call" onclick="EndCall()">
@@ -47,10 +59,13 @@
                 <div class="error" id="error">
                 </div>
             </div>
-            
-            <div id="images">
-
+            <div onclick="ShowChannels()" class="channelsButton">
+                <div class="navigationBarPart"></div>
+                <div class="navigationBarPart"></div>
+                <div class="navigationBarPartBottom"></div>
             </div>
+
+
             <script src="script.js"></script>
             <script>
                 var me = {}
@@ -62,10 +77,11 @@
                 var lastReadMessageId = "0" // string
                 var volume = 1.0
                 var attachments = []
-                var ws = new WebSocket(location.protocol.replace("http", "ws") + "//" + window.location.host)
+                var ws
                 var calling = false
                 var muted = false
                 var unread = 999999999
+                var sending = false
 
                 OpenWebSocket()
                 RequestMe()
@@ -106,6 +122,15 @@
                     document.getElementById("error").style.display = "none"
                 }
 
+                function ShowInfo(info) {
+                    document.getElementById("info").innerHTML = info
+                    document.getElementById("info").style.display = "block"
+                }
+
+                function HideInfo(info) {
+                    document.getElementById("info").style.display = "none"
+                }
+
 
                 // Calls
                 function Mute() {
@@ -117,6 +142,10 @@
                 function EndCall() {
                     calling = false
                 }
+
+                function UpdateCallUI() {
+
+                }
                 
                 var interval = 256
                 var callChannelId = ""
@@ -127,13 +156,13 @@
                     document.getElementById("mutedstate").innerHTML = muted ? "Muted" : "Unmuted"
                     calling = true
                     document.getElementById("call").style.display = "block"
-                    
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         var loopId = setInterval(() => {
                             if(!calling)
                             {
                                 document.getElementById("call").style.display = "none"
                                 clearInterval(loopId)
+                                // properly stop media recording
                                 stream.getTracks().forEach(x => {
                                     x.stop()
                                 })
@@ -171,6 +200,8 @@
                     })
                     
                 }
+
+                var tryingConnection = false;
                 
                 // WS handling
                 function OpenWebSocket() {
@@ -178,18 +209,26 @@
 
                     ws.onopen = () => {
                         console.log("connection opened, registering on server")
+                        tryingConnection = false
                         //ws.send(localStorage.token + "|register")
                     }
 
                     ws.onclose = e => {
                         console.log(e)
                         ShowError("Websocket connection closed unexpectedly. Trying to reconnect...")
+                        if(tryingConnection) return
+                        if(ws.readyState == 1) {
+                            return;
+                        }
+                        tryingConnection = true
+                        
                         var reconnectLoop = setInterval(() => {
                             if(ws.readyState == 1) {
                                 clearInterval(reconnectLoop)
                                 HideError()
                                 return;
                             }
+                            ws.close()
                             OpenWebSocket()
                         }, 1000)
                     }
@@ -209,7 +248,7 @@
                                     x.attachments.forEach(a => {
                                         m = FormatAttachment(a.relUrl, a.mimeType, a.filename) + m
                                     })
-                                    m = `<div><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</div>` + m
+                                    m = `<li class="message"><div class='username'>${x.author.nickname}</div>: <div class="inline date">${GetTimeString(x.sendTime)}</div><br>${SafeFormat(x.content)}</li>` + m
                                     var message = document.createElement("div")
                                     message.className = "message"
                                     message.innerHTML = m
@@ -287,7 +326,7 @@
                         console.log(FormatAttachment(attachments[i].base64, GetMimeTypeFromBase64(attachments[i].base64), attachments[i].filename))
                         html += FormatAttachment(attachments[i].base64, GetMimeTypeFromBase64(attachments[i].base64), attachments[i].filename)
                     }
-                    document.getElementById("images").innerHTML = html
+                    document.getElementById("attachments").innerHTML = html
                 }
 
                 function FormatAttachment(src, mimeType, filename = "untitled") {
@@ -346,11 +385,18 @@
                         return
                     }
                     ws.send(`${localStorage.token}|messages|${currentChannel}`)
+                    UpdateCallUI()
                 }
 
                 // message sending
                 function SendMessage(message) {
                     if(!message) message = document.getElementById("message").value
+                    if(sending) {
+                        ShowInfo("You can't send messages while another one is being sent. Please wait.")
+                        return
+                    }
+                    ShowInfo("Sending message...")
+                    sending = true
                     tfetch("/api/v1/messages/" + currentChannel, "POST", JSON.stringify({
                         author: {
                             nickname: me.nickname,
@@ -359,6 +405,8 @@
                         attachments: attachments,
                         content: message
                     })).then(res => {
+                        HideInfo()
+                        sending = false
                         AfterSendCleanup()
                         first = true
                         UpdateChannel()
@@ -372,12 +420,21 @@
                 }
 
                 // channel switching
-                function OpenChannel(id) {
+                function OpenChannel(id, name) {
                     currentChannel = id
                     first = true
                     messages.innerHTML = ""
                     lastMessage = 0;
+                    document.getElementById("channelName").innerHTML = name
+                    console.log(document.getElementById("input"))
+                    document.getElementById("input").scrollIntoView()
                     UpdateChannel()
+                }
+
+                function ShowChannels() {
+                    document.getElementById("channelsAnker").scrollIntoView({
+                        behavior: "smooth"
+                    })
                 }
 
                 // channel ui updating
@@ -391,11 +448,11 @@
                         currentUnread += x.unread
                         var participants = ""
                         x.participants.forEach(p => {
-                            if(p.id != me.id || x.participants.length < 2) participants += p.nickname + ", ";
+                            if(p.id != me.id || x.participants.length < 2) participants += SafeFormat(p.nickname) + ", ";
                         })
                         if(participants.length > 0) participants = participants.substring(0, participants.length - 2)
                         c.innerHTML += `<div class="channel">
-                                <a onclick="OpenChannel('${x.id}')">${participants} (${x.unread}${x.callActive ? "; call active" : ""})</a>
+                                <a onclick="OpenChannel('${x.id}', '${participants}')">${participants} (${x.unread}${x.callActive ? "; call active" : ""})</a>
                             </div>`
                     })
                     if(currentUnread > unread) {
