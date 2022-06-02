@@ -150,32 +150,7 @@
                 var interval = 256
                 var callChannelId = ""
                 function CallSendSnippet(mediaRecorder, stream) {
-                    mediaRecorder.ondataavailable = function(e) {
-                        if(!calling)
-                        {
-                            document.getElementById("call").style.display = "none"
-                            // properly stop media recording
-                            mediaRecorder.stop()
-                            stream.getTracks().forEach(x => {
-                                x.stop()
-                            })
-                            SendMessage(`${me.nickname} left the call`)
-                            return
-                        }
-                        console.log("pushing")
-                        var reader = new window.FileReader();
-                        reader.readAsDataURL(new Blob([e.data], { 'type': 'audio/ogg; codecs=opus' })); 
-                        reader.onloadend = function() {
-                            base64 = reader.result;
-                            if(!muted) {
-                                var start = Date.now()
-                                tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
-                                    document.getElementById("ping").innerHTML = Date.now() - start + " ms"
-                                })
-                            }
-                        }
-                    }
-                    mediaRecorder.start(interval);
+                    
                 }
 
                 function Call() {
@@ -191,7 +166,32 @@
                     document.getElementById("call").style.display = "block"
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         const mediaRecorder = new MediaRecorder(stream);
-                        CallSendSnippet(mediaRecorder, stream)
+                        mediaRecorder.ondataavailable = function(e) {
+                            if(!calling)
+                            {
+                                document.getElementById("call").style.display = "none"
+                                // properly stop media recording
+                                mediaRecorder.stop()
+                                stream.getTracks().forEach(x => {
+                                    x.stop()
+                                })
+                                SendMessage(`${me.nickname} left the call`)
+                                return
+                            }
+                            ShowError("pushing " + Date.now())
+                            var reader = new window.FileReader();
+                            reader.readAsDataURL(new Blob([e.data], { 'type': 'audio/ogg; codecs=opus' })); 
+                            reader.onloadend = function() {
+                                base64 = reader.result;
+                                if(!muted) {
+                                    var start = Date.now()
+                                    tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
+                                        document.getElementById("ping").innerHTML = Date.now() - start + " ms"
+                                    })
+                                }
+                            }
+                        }
+                        mediaRecorder.start(interval);
                     }).catch(err => {
                         console.log(err)
                     })
