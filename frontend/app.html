@@ -149,8 +149,43 @@
                 
                 var interval = 256
                 var callChannelId = ""
+                var recordStop = Date.now()
                 function CallSendSnippet(mediaRecorder, stream) {
+                    if(!calling)
+                    {
+                        document.getElementById("call").style.display = "none"
+                        // properly stop media recording
+                        stream.getTracks().forEach(x => {
+                            x.stop()
+                        })
+                        SendMessage(`${me.nickname} left the call`)
+                        return
+                    }
                     
+                    let audioChunks = [];
+
+                    mediaRecorder.ondataavailable = function(e) {
+                        audioChunks.push(e.data);
+                    }
+                    mediaRecorder.start();
+                    mediaRecorder.onstop = function(e) {
+                        var reader = new window.FileReader();
+                        reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
+                        reader.onloadend = function() {
+                            base64 = reader.result;
+                            if(!muted) {
+                                var start = Date.now()
+                                tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
+                                    document.getElementById("ping").innerHTML = Date.now() - start + " ms"
+                                })
+                            }
+                        }
+                    }
+                    setTimeout(() => {
+                        recordStop = Date.now()
+                        mediaRecorder.stop();
+                        CallSendSnippet(mediaRecorder, stream)
+                    }, interval);
                 }
 
                 function Call() {
@@ -166,33 +201,10 @@
                     document.getElementById("call").style.display = "block"
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
                         const mediaRecorder = new MediaRecorder(stream);
-                        mediaRecorder.ondataavailable = function(e) {
-                            if(!calling)
-                            {
-                                document.getElementById("call").style.display = "none"
-                                // properly stop media recording
-                                mediaRecorder.stop()
-                                stream.getTracks().forEach(x => {
-                                    x.stop()
-                                })
-                                SendMessage(`${me.nickname} left the call`)
-                                return
-                            }
-                            ShowError("pushing " + Date.now())
-                            var reader = new window.FileReader();
-                            reader.readAsDataURL(new Blob([e.data], { 'type': 'audio/ogg; codecs=opus' })); 
-                            reader.onloadend = function() {
-                                base64 = reader.result;
-                                if(!muted) {
-                                    var start = Date.now()
-                                    tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
-                                        document.getElementById("ping").innerHTML = Date.now() - start + " ms"
-                                    })
-                                }
-                            }
-                        }
-                        mediaRecorder.start(interval);
+                        CallSendSnippet(mediaRecorder, stream)
+                        
                     }).catch(err => {
+                        alert("fuck you")
                         console.log(err)
                     })
                     
