@@ -149,53 +149,50 @@
                 
                 var interval = 256
                 var callChannelId = ""
+                function CallSendSnippet(mediaRecorder, stream) {
+                    mediaRecorder.ondataavailable = function(e) {
+                        if(!calling)
+                        {
+                            document.getElementById("call").style.display = "none"
+                            // properly stop media recording
+                            mediaRecorder.stop()
+                            stream.getTracks().forEach(x => {
+                                x.stop()
+                            })
+                            SendMessage(`${me.nickname} left the call`)
+                            return
+                        }
+                        console.log("pushing")
+                        var reader = new window.FileReader();
+                        reader.readAsDataURL(new Blob([e.data], { 'type': 'audio/ogg; codecs=opus' })); 
+                        reader.onloadend = function() {
+                            base64 = reader.result;
+                            if(!muted) {
+                                var start = Date.now()
+                                tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
+                                    document.getElementById("ping").innerHTML = Date.now() - start + " ms"
+                                })
+                            }
+                        }
+                    }
+                    mediaRecorder.start(interval);
+                }
+
                 function Call() {
                     if(calling) return;
                     SendMessage(`${me.nickname} is calling you!`)
                     callChannelId = currentChannel
+                    if(GetChannel(callChannelId).participants.length <= 1) {
+                        ShowError("There's no point in calling yourself")
+                        return;
+                    }
                     document.getElementById("mutedstate").innerHTML = muted ? "Muted" : "Unmuted"
                     calling = true
                     document.getElementById("call").style.display = "block"
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
-                        var loopId = setInterval(() => {
-                            if(!calling)
-                            {
-                                document.getElementById("call").style.display = "none"
-                                clearInterval(loopId)
-                                // properly stop media recording
-                                stream.getTracks().forEach(x => {
-                                    x.stop()
-                                })
-                                SendMessage(`${me.nickname} left the call`)
-                                return
-                            }
-                            const mediaRecorder = new MediaRecorder(stream);
-                            let audioChunks = [];
-
-                            mediaRecorder.ondataavailable = function(e) {
-                                audioChunks.push(e.data);
-                            }
-                            mediaRecorder.start();
-                            mediaRecorder.onstop = function(e) {
-                                var reader = new window.FileReader();
-                                reader.readAsDataURL(new Blob(audioChunks, { 'type': 'audio/ogg; codecs=opus' })); 
-                                reader.onloadend = function() {
-                                    base64 = reader.result;
-                                    if(!muted) {
-                                        var start = Date.now()
-                                        tfetch("/api/v1/call", "POST", localStorage.token + "|call|" + callChannelId + "|" + base64).then(res => {
-                                            document.getElementById("ping").innerHTML = Date.now() - start + " ms"
-                                        })
-                                    }
-                                }
-                            }
-                            setTimeout(() => {
-                                mediaRecorder.stop();
-                            }, interval);
-                        }, interval);
-                        
+                        const mediaRecorder = new MediaRecorder(stream);
+                        CallSendSnippet(mediaRecorder, stream)
                     }).catch(err => {
-                        alert("fuck you")
                         console.log(err)
                     })
                     
@@ -429,6 +426,15 @@
                     console.log(document.getElementById("input"))
                     document.getElementById("input").scrollIntoView()
                     UpdateChannel()
+                }
+
+                function GetChannel(id) {
+                    for(var i = 0; i < channels.length; i++) {
+                        if(channels[i].id == id) {
+                            return channels[i]
+                        }
+                    }
+                    return null
                 }
 
                 function ShowChannels() {

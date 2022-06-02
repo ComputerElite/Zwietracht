@@ -20,33 +20,16 @@ html {
     font-size: 18px!important;
 }
 
-
-@media screen and (min-aspect-ratio: 1/1) {
-    .navigationBarPart {
-        width: 1cm;
-        height: 0.2cm;
-        border-top: 0.1cm solid var(--textColor);
-    }
-
-    .navigationBarPartBottom {
-        width: 1cm;
-        height: 0.1cm;
-        border-top: 0.1cm solid var(--textColor);
-    }
+.navigationBarPart {
+    width: 1cm;
+    height: 0.2cm;
+    border-top: 0.1cm solid var(--textColor);
 }
 
-@media screen and (max-aspect-ratio: 1/1) {
-    .navigationBarPart {
-        width: 4cm;
-        height: 1.2cm;
-        border-top: 0.2cm solid var(--textColor);
-    }
-
-    .navigationBarPartBottom {
-        width: 4cm;
-        height: 0.2cm;
-        border-top: 0.2cm solid var(--textColor);
-    }
+.navigationBarPartBottom {
+    width: 1cm;
+    height: 0.1cm;
+    border-top: 0.1cm solid var(--textColor);
 }
 
 .channelsButton {
