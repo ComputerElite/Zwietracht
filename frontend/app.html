@@ -150,7 +150,7 @@
                 var interval = 256
                 var callChannelId = ""
                 var recordStop = Date.now()
-                function CallSendSnippet(mediaRecorder, stream) {
+                function CallSendSnippet(stream) {
                     if(!calling)
                     {
                         document.getElementById("call").style.display = "none"
@@ -161,7 +161,7 @@
                         SendMessage(`${me.nickname} left the call`)
                         return
                     }
-                    
+                    const mediaRecorder = new MediaRecorder(stream);
                     let audioChunks = [];
 
                     mediaRecorder.ondataavailable = function(e) {
@@ -183,9 +183,8 @@
                     }
                     setTimeout(() => {
                         recordStop = Date.now()
-                        CallSendSnippet(mediaRecorder, stream)
                         mediaRecorder.stop();
-                        
+                        CallSendSnippet(stream)
                     }, interval);
                 }
 
@@ -201,9 +200,7 @@
                     calling = true
                     document.getElementById("call").style.display = "block"
                     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
-                        const mediaRecorder = new MediaRecorder(stream);
-                        CallSendSnippet(mediaRecorder, stream)
-                        
+                        CallSendSnippet(stream)
                     }).catch(err => {
                         alert("fuck you")
                         console.log(err)
