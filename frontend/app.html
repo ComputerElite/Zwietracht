@@ -182,9 +182,11 @@
                         }
                     }
                     setTimeout(() => {
+                        CallSendSnippet(stream)
+                    }, interval - 10);
+                    setTimeout(() => {
                         recordStop = Date.now()
                         mediaRecorder.stop();
-                        CallSendSnippet(stream)
                     }, interval);
                 }
 
